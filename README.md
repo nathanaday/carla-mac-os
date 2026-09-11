@@ -3,6 +3,9 @@
 Run the [CARLA driving simulator](https://github.com/carla-simulator/carla) on an Apple M-series
 Mac.
 
+<img width="1552" height="1110" alt="Screenshot 2026-09-10 at 11 14 12 PM" src="https://github.com/user-attachments/assets/abaa1540-4d99-4952-a36f-6d8b367bbdb1" />
+
+
 ## About
 
 CARLA ships builds for Ubuntu and Windows only. On a Mac the usual answers are to rent a Linux
