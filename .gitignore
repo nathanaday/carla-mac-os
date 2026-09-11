@@ -1,0 +1,47 @@
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+.Spotlight-V100
+.Trashes
+
+# Editors
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg
+*.egg-info/
+.venv/
+venv/
+env/
+.python-version
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Environment and secrets
+.env
+.env.*
+!.env.example
+
+# CARLA release packages and wrapper bundles
+# These run 7-20 GB each and are downloaded, never committed.
+*.zip
+*.tar.gz
+*.whl
+CARLA_*/
+AdditionalMaps_*/
+*.app/
+
+# CARLA runtime output
+*.log
+*.rec
+recordings/
+out/
+output/

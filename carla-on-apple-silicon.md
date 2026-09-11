@@ -1,0 +1,248 @@
+# Run CARLA on Apple Silicon
+
+CARLA publishes builds for Ubuntu and Windows only. This guide runs the **Windows** build of the
+CARLA server on an Apple Silicon Mac inside a Wine wrapper, using Apple's D3DMetal to translate
+Direct3D 12 calls to Metal. The Python client runs inside the same wrapper.
+
+There is no native macOS build of the CARLA server, and no macOS wheel for the `carla` Python
+package. Both halves run under Wine.
+
+Community reports in [carla-simulator/carla#9037](https://github.com/carla-simulator/carla/discussions/9037)
+confirm this stack on macOS 26.2 with CARLA 0.9.16, on a MacBook Air M4 (24 GB) and a Mac Mini
+M4 (16 GB). Earlier reports put CARLA 0.9.15 at 30-60 fps on a Mac Mini M4.
+
+## Not covered here
+
+- **ROS / ROS2.** Nobody in the discussion got ROS working with this setup. ROS inside Wine failed.
+  ROS inside Docker works, but DDS multicast stays inside the Docker network.
+- **CARLA 0.10.0 (Unreal Engine 5).** It runs, at 10-15 fps on a Mac Mini M4. Use 0.9.16.
+- **Building CARLA from source.** The Windows release package is the only practical input.
+
+## Requirements
+
+| Item | Value |
+|---|---|
+| Hardware | Apple Silicon Mac. M4 handles CARLA 0.9.15 and 0.9.16. M1 and M2 machines are reported to need 0.9.14 or older. |
+| Memory | 16 GB minimum, 24 GB for 0.9.15 and later |
+| macOS | 14 or later (Sikarugir requirement). Confirmed on 26.2 and 26.6. |
+| Free disk | 40 GB. The 0.9.16 Windows zip is 7.8 GB and the additional maps are another 7.3 GB. |
+| Other | Homebrew, Rosetta 2 |
+
+Install Rosetta 2 if it is missing:
+
+```bash
+/usr/sbin/softwareupdate --install-rosetta --agree-to-license
+```
+
+## Choose a CARLA version
+
+| Version | Use it when |
+|---|---|
+| **0.9.16** | Default choice. Latest release, reported working on macOS 26.2. |
+| 0.9.15 | Fall back here if 0.9.16 renders a black screen. Most widely reported version in the thread. |
+| 0.9.11-0.9.14 | M1 or M2 hardware. |
+| 0.10.0 | Skip. Unreal Engine 5, 10-15 fps on M4. |
+
+The rest of this guide uses 0.9.16. Substitute the version number where it appears in paths.
+
+## Step 1: Install Sikarugir
+
+Sikarugir is a maintained fork of the Wineskin wrapper tool. Use it rather than Kegworks —
+Kegworks fails to create a wrapper on macOS 26 with a "no wrapper installed" error.
+
+```bash
+brew upgrade
+brew trust --cask Sikarugir-App/sikarugir/sikarugir
+brew install --cask Sikarugir-App/sikarugir/sikarugir
+```
+
+Trust the cask, not the whole tap. `brew trust Sikarugir-App/sikarugir` also works and is what the
+project's README shows, but it covers every cask and command in that tap, now and in the future.
+
+Before or after installing, verify what you pulled:
+
+```bash
+scripts/verify-sources.sh
+```
+
+That checks the cask's pinned hash against a fresh download, confirms the publisher, and lists
+every network endpoint embedded in the app. See [docs/sikarugir.md](docs/sikarugir.md) for what
+the checks prove, and for the two things about this install that are worth knowing: the app is not
+notarized, and the Creator is closed source.
+
+## Step 2: Create a blank wrapper
+
+1. Open **Sikarugir Creator.app**.
+2. Click **Install Engine** and choose **`WS12WineSikarugir10.0_6`**.
+3. Click **Update Wrapper**.
+4. Click **Create New Blank Wrapper**. Name it `CARLA`.
+
+The engine list is not sorted by recency, and the names mix a Wineskin series number, a Wine
+source, and a rebuild counter. Three rules cover it:
+
+- Take a **`WS12`** engine. That is the newer Wineskin series.
+- Never take a **`32Bit`** engine. CARLA ships 64-bit binaries only.
+- The trailing `_6` is a rebuild number, not a version.
+
+`WS12WineCX24.0.7_7` is the fallback if the default engine misbehaves.
+[docs/sikarugir.md](docs/sikarugir.md) decodes the full list. To check an engine before using it:
+
+```bash
+scripts/verify-sources.sh engine WS12WineSikarugir10.0_6
+```
+
+The wrapper is an app bundle, written to `~/Applications/Sikarugir/CARLA.app`. Everything from here
+happens inside it.
+
+## Step 3: Install the Visual C++ runtime
+
+1. Right-click `CARLA.app` and choose **Show Package Contents**.
+2. Open `Contents/Configure.app`.
+3. Open **Winetricks** (under **Tools** on the Advanced screen in some builds).
+4. Search for `vcrun`. Select **`vcrun2022` only**. Uncheck **silent**. Click **Run**.
+
+Watch the installer window that appears and confirm it finishes without an error.
+
+> **Do not install `vcrun2019`.** The original setup notes call for both, but installing 2019
+> alongside 2022 produces a fatal error on Test Run under macOS 26.
+
+If Winetricks reports problems later, `win10` and `cmd` are also worth installing.
+
+## Step 4: Install CARLA into the wrapper
+
+1. Download [CARLA_0.9.16.zip](https://downloads.carlasim.com/Windows/CARLA_0.9.16.zip) and extract it.
+2. In `Configure.app`, click **Install Software**.
+3. Click **Move a Folder Inside** and select the extracted folder.
+
+The folder lands at `C:\Program Files\CARLA_0.9.16` inside the wrapper.
+
+## Step 5: Set the executable
+
+In `Configure.app`, set the Windows executable to:
+
+```
+C:\Program Files\CARLA_0.9.16\CarlaUE4.exe
+```
+
+> **Point at `CarlaUE4.exe`, not `CarlaUE4\Binaries\Win64\CarlaUE4-Win64-Shipping.exe`.**
+> The shipping binary is the launcher's target, not the launcher. Running it directly is the most
+> common cause of the fatal-error dialog on Test Run.
+
+## Step 6: Enable D3DMetal and test
+
+1. In `Configure.app`, check **D3DMetal**.
+2. Optionally check **Performance HUD** to display fps, GPU, and memory on the CARLA window.
+3. Click **Test Run**.
+
+CARLA should open a window showing Town10 with a free camera. Drag to look around.
+
+Once Test Run succeeds, close `Configure.app`. Launch `CARLA.app` from Finder like any other Mac
+application.
+
+## Step 7: Set launch flags
+
+Put flags in the flags field beside the executable path in `Configure.app`:
+
+| Flag | Effect |
+|---|---|
+| `-quality-level=Low` | Fixes freezing and slow rendering. Try this first if the window stutters. |
+| `-RenderOffScreen` | Runs the server with no window. Use when a client script drives everything. |
+| `-carla-rpc-port=2000` | Sets the RPC port. Default is 2000. |
+| `-windowed -ResX=1280 -ResY=720` | Runs at a fixed smaller resolution. |
+
+With `-RenderOffScreen` there is no window to close. Stop the server with **Kill Wine Processes**
+in the `Configure.app` Tools window.
+
+## Step 8: Install the Python client
+
+The client runs inside the same wrapper, against a Windows Python.
+
+Python 3.10 is the version to install. It is the only release with a Windows `carla` wheel for both
+0.9.15 and 0.9.16:
+
+| CARLA | Windows wheels on PyPI |
+|---|---|
+| 0.9.15 | 3.7, 3.8, 3.9, 3.10 |
+| 0.9.16 | 3.10, 3.11, 3.12 |
+
+1. Download the **Windows 64-bit** installer for Python 3.10 from python.org.
+2. In `Configure.app`, click **Install Software**, then **Choose Setup Executable**, and select the
+   Python installer.
+3. In the Python installer, click **Customize installation**. Check every optional feature. On the
+   next screen check **Install for all users** and **Add Python to environment variables**. Install.
+
+Then open **Command Line** in `Configure.app` and install the client:
+
+```
+python -m pip install --upgrade pip
+pip install carla==0.9.16 pygame numpy
+```
+
+## Step 9: Run a client script
+
+Start `CARLA.app`. Then, from **Command Line** in `Configure.app`:
+
+```
+python "C:\Program Files\CARLA_0.9.16\PythonAPI\examples\generate_traffic.py"
+```
+
+`manual_control.py` and `vehicle_gallery.py` work the same way.
+
+A `ModuleNotFoundError` means an example needs a dependency that the wheel does not pull in. Install
+it and re-run:
+
+```
+pip install shapely
+```
+
+## Optional: additional maps
+
+1. Download [AdditionalMaps_0.9.16.zip](https://downloads.carlasim.com/Windows/AdditionalMaps_0.9.16.zip).
+2. Find the wrapper's Windows drive:
+
+```bash
+find ~/Applications -maxdepth 6 -type d -name drive_c
+```
+
+3. Unzip into the CARLA root folder **from Terminal**:
+
+```bash
+unzip AdditionalMaps_0.9.16.zip -d "<drive_c>/Program Files/CARLA_0.9.16"
+```
+
+Extracting through Finder produces a layout where the client cannot find the new maps.
+
+## Troubleshooting
+
+| Symptom | Fix |
+|---|---|
+| "No wrapper installed", cannot create a wrapper | You are on Kegworks. Use Sikarugir (Step 1). |
+| Fatal error on Test Run | Install `vcrun2022` only, not `vcrun2019` (Step 3). |
+| Fatal error, and `CarlaUE4-Win64-Shipping.exe` opens | Point the wrapper at `CarlaUE4.exe` (Step 5). |
+| Black screen, no crash | Your machine cannot drive this CARLA version. Drop to 0.9.15, then 0.9.9.4 to confirm the wrapper itself works. |
+| Freezing, very low fps | Add `-quality-level=Low` (Step 7). |
+| Client cannot find added maps | Re-extract the maps zip from Terminal (Optional section). |
+| macOS reports a downloaded package as damaged | Settings → Privacy & Security → **Open Anyway**. |
+
+## Architecture
+
+```
+macOS (arm64)
+└── Sikarugir wrapper: CARLA.app
+    ├── Wine + D3DMetal
+    ├── CarlaUE4.exe          server, RPC on port 2000
+    └── Python 3.10 (win64)   client, carla wheel from PyPI
+```
+
+The client talks to the server over TCP, so it can live anywhere that can reach port 2000. The
+alternative to Wine Python is a `linux/amd64` Docker container running the manylinux wheel. That
+works, but on Apple Silicon it runs under qemu emulation and the discussion's author moved away
+from it once the Wine client worked.
+
+## Sources
+
+- [CARLA discussion #9037](https://github.com/carla-simulator/carla/discussions/9037) — the full thread
+- "CARLA Server on Apple Silicon Mac" PDF by @nveshaan, attached to that thread
+- Python client inside the wrapper: [@canibal1's comment](https://github.com/carla-simulator/carla/discussions/9037#discussioncomment-13964038)
+- macOS 26 fixes (Sikarugir, `vcrun2022`, `CarlaUE4.exe`): [@potatocodex](https://github.com/carla-simulator/carla/discussions/9037)
+- Video walkthroughs by @potatocodex: [server](https://youtu.be/1ioMz-HHmEI), [Python client](https://youtu.be/581klnkqgO8)
