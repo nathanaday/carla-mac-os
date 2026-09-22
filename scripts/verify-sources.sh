@@ -40,7 +40,7 @@ expected_sha() {
 check_cask() {
   head1 "Homebrew cask: $CASK"
 
-  local tap_dir cask_file pinned live cached url
+  local tap_dir cask_file pinned live cached url version
   tap_dir="$(brew --repo "$TAP" 2>/dev/null || true)"
   if [[ -z "$tap_dir" || ! -d "$tap_dir" ]]; then
     fail "tap not installed; run: brew tap $TAP"
@@ -49,17 +49,28 @@ check_cask() {
 
   cask_file="$(find "$tap_dir" -name 'sikarugir.rb' -print -quit)"
   pinned="$(awk -F'"' '/^[[:space:]]*sha256/ { print $2 }' "$cask_file")"
-  url="$(awk -F'"' '/^[[:space:]]*url/ { print $2 }' "$cask_file" | sed "s/#{version}/$(awk -F'"' '/^[[:space:]]*version/ { print $2 }' "$cask_file")/g")"
+  version="$(awk -F'"' '/^[[:space:]]*version/ { print $2 }' "$cask_file")"
+  url="$(awk -F'"' '/^[[:space:]]*url/ { print $2 }' "$cask_file" | sed "s/#{version}/$version/g")"
+  info "version: $version"
   info "url: $url"
 
-  # 1. The cask pin must match what we recorded as known-good.
+  # 1. The cask pin must match what we recorded as known-good for THIS version.
+  #    A version we have not recorded is drift, not tampering. An unchanged
+  #    version with a changed hash means the asset was replaced in place, which
+  #    is the case that matters.
   local recorded
-  recorded="$(expected_sha "Creator-v1.0.1.tar.xz")"
-  if [[ -n "$recorded" && "$pinned" == "$recorded" ]]; then
+  recorded="$(expected_sha "Creator-v$version.tar.xz")"
+  if [[ -z "$recorded" ]]; then
+    warn "no recorded checksum for Creator v$version"
+    info "the cask moved past the versions this repo has verified"
+    info "if the checks below pass, record it in checksums/known-good.txt:"
+    info "$pinned  Creator-v$version.tar.xz"
+  elif [[ "$pinned" == "$recorded" ]]; then
     pass "cask sha256 matches checksums/known-good.txt"
   else
     fail "cask sha256 ($pinned) does not match known-good ($recorded)"
-    info "the cask was updated; review the diff before trusting the new pin"
+    info "same version, different hash: the asset was replaced in place"
+    info "review the diff before trusting the new pin"
   fi
 
   # 2. The live asset must still hash to the pin. Catches an asset replaced
@@ -71,24 +82,34 @@ check_cask() {
     fail "live download ($live) does not match the cask pin ($pinned)"
   fi
 
-  # 3. What actually landed on this machine.
-  cached="$(find "$(brew --cache)/downloads" -name '*Creator*' -print 2>/dev/null | head -1)"
-  if [[ -n "$cached" ]]; then
-    local local_sha
-    local_sha="$(shasum -a 256 "$cached" | cut -d' ' -f1)"
-    if [[ "$local_sha" == "$pinned" ]]; then
-      pass "local Homebrew cache matches the cask pin"
-    else
-      fail "local cache ($local_sha) does not match the cask pin"
-    fi
-  else
+  # 3. What actually landed on this machine. The cache holds whatever version
+  #    was installed last, which is not always the version the cask now pins.
+  #    An older hash that this repo already recorded means "you have not
+  #    upgraded yet". Only an unrecognized hash is a failure.
+  cached="$(find "$(brew --cache)/downloads" -name '*Creator*' 2>/dev/null || true)"
+  if [[ -z "$cached" ]]; then
     info "no cached download found (cache may have been cleaned)"
+  else
+    local local_sha known
+    while IFS= read -r f; do
+      [[ -n "$f" ]] || continue
+      local_sha="$(shasum -a 256 "$f" | cut -d' ' -f1)"
+      known="$(awk -v h="$local_sha" '$1 == h { print $2; exit }' "$KNOWN_GOOD")"
+      if [[ "$local_sha" == "$pinned" ]]; then
+        pass "local Homebrew cache matches the cask pin"
+      elif [[ -n "$known" ]]; then
+        warn "local cache holds $known, an older recorded version"
+        info "the cask now pins $version; upgrade with: brew upgrade --cask $CASK"
+      else
+        fail "local cache ($local_sha) matches no recorded checksum"
+      fi
+    done <<< "$cached"
   fi
 
   # 4. Who publishes it.
   if command -v gh >/dev/null 2>&1; then
     local publisher
-    publisher="$(gh api repos/Sikarugir-App/Creator/releases/tags/v1.0.1 --jq '.author.login' 2>/dev/null || echo "")"
+    publisher="$(gh api "repos/Sikarugir-App/Creator/releases/tags/v$version" --jq '.author.login' 2>/dev/null || echo "")"
     if [[ "$publisher" == "Gcenx" ]]; then
       pass "release published by Gcenx"
     elif [[ -n "$publisher" ]]; then
@@ -114,6 +135,12 @@ check_app() {
 
   # The cask ad-hoc re-signs the bundle on purpose, so an ad-hoc signature is
   # expected here. A Developer ID signature would be a surprise, not a problem.
+  # The embedded endpoint list changes between Creator releases, so record which
+  # version produced the list below.
+  local appver
+  appver="$(defaults read "$APP/Contents/Info" CFBundleShortVersionString 2>/dev/null || echo "")"
+  info "installed version: ${appver:-unknown}"
+
   local sig
   sig="$(codesign -dvvv "$APP" 2>&1 | awk -F= '/^Signature=/ { print $2 }')"
   info "signature: ${sig:-none}"
@@ -123,7 +150,8 @@ check_app() {
     warn "unexpected signature state; see docs/sikarugir.md"
   fi
 
-  # The point of this check: the app must only reach Sikarugir-App on GitHub.
+  # The point of this check: the app must only reach Sikarugir-App, either on
+  # github.com or on the same org's GitHub Pages site.
   head1 "Network endpoints embedded in the app"
   local urls
   urls="$(find "$APP" -type f \( -perm -u+x -o -name '*.dylib' \) -exec strings -a {} \; 2>/dev/null \
@@ -132,9 +160,11 @@ check_app() {
     warn "no URLs found; the bundle layout may have changed"
     return
   fi
-  local unexpected=0
+  local unexpected=0 lower
   while IFS= read -r u; do
-    if [[ "$u" =~ ^https://(github\.com|raw\.githubusercontent\.com)/Sikarugir-App/ ]]; then
+    lower="$(printf '%s' "$u" | tr '[:upper:]' '[:lower:]')"
+    if [[ "$lower" =~ ^https://(github\.com|raw\.githubusercontent\.com)/sikarugir-app/ ]] \
+       || [[ "$lower" =~ ^https://sikarugir-app\.github\.io/ ]]; then
       info "ok        $u"
     else
       fail "unexpected endpoint: $u"
@@ -142,7 +172,7 @@ check_app() {
     fi
   done <<< "$urls"
   if [[ $unexpected -eq 0 ]]; then
-    pass "all endpoints are Sikarugir-App on GitHub"
+    pass "all endpoints are Sikarugir-App on github.com or github.io"
   fi
 }
 
@@ -175,12 +205,19 @@ check_engine() {
     info "actual:   $actual"
   fi
 
-  # D3DMetal needs a Metal-capable Wine build. Every engine checked so far
-  # carries winemetal; an engine without it cannot drive CARLA.
-  if tar -tJf "$tmp" 2>/dev/null | grep -q winemetal; then
-    pass "carries winemetal (D3DMetal capable)"
+  # D3DMetal reaches the engine two different ways. Wine-native builds ship
+  # winemetal.dll inside the Wine tree. Apple Game Porting Toolkit builds ship
+  # a d3dmetal_force marker at the bundle root and no winemetal.dll at all.
+  # Either one is D3DMetal capable. Checking only for winemetal reports a false
+  # failure on every GPTK engine.
+  local listing
+  listing="$(tar -tJf "$tmp" 2>/dev/null || true)"
+  if grep -q 'winemetal\.dll' <<< "$listing"; then
+    pass "carries winemetal.dll (Wine-native Metal backend)"
+  elif grep -q 'd3dmetal_force' <<< "$listing"; then
+    pass "carries the d3dmetal_force marker (Game Porting Toolkit build)"
   else
-    fail "no winemetal; this engine cannot run CARLA with D3DMetal"
+    fail "no winemetal.dll and no d3dmetal_force; not D3DMetal capable"
   fi
 
   local version
