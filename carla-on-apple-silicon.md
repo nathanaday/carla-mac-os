@@ -23,9 +23,9 @@ M4 (16 GB). Earlier reports put CARLA 0.9.15 at 30-60 fps on a Mac Mini M4.
 | Item | Value |
 |---|---|
 | Hardware | Apple Silicon Mac. M4 handles CARLA 0.9.15 and 0.9.16. M1 and M2 machines are reported to need 0.9.14 or older. |
-| Memory | 16 GB minimum, 24 GB for 0.9.15 and later |
-| macOS | 14 or later (Sikarugir requirement). Confirmed on 26.2 and 26.6. |
-| Free disk | 40 GB. The 0.9.16 Windows zip is 7.8 GB and the additional maps are another 7.3 GB. |
+| Memory | 24 GB for 0.9.15 and later. 16 GB has failed; see Reported failures. |
+| macOS | 26 recommended. Sikarugir itself runs on 14 or later, but every confirmed CARLA success is on macOS 26.x. See Reported failures. |
+| Free disk | 45 GB at peak. The 0.9.16 Windows zip is 7.8 GB, the extracted folder is larger, and Step 4 copies it a second time into the wrapper. The additional maps are another 7.3 GB. |
 | Other | Homebrew, Rosetta 2 |
 
 Install Rosetta 2 if it is missing:
@@ -34,12 +34,33 @@ Install Rosetta 2 if it is missing:
 /usr/sbin/softwareupdate --install-rosetta --agree-to-license
 ```
 
+That command prints nothing when Rosetta is already present, so it is not proof.
+Confirm it separately:
+
+```bash
+/usr/bin/arch -x86_64 /usr/bin/true && echo "rosetta ok" || echo "ROSETTA MISSING"
+```
+
+### Reported failures
+
+| Machine | CARLA | Result |
+|---|---|---|
+| M4, 16 GB, macOS 15.6 | 0.9.16 | Wine starts both processes, a `CarlaUE4` window opens and stays solid black, and the host swaps heavily. Town10 never appears. ([issue #1](https://github.com/nathanaday/carla-mac-os/issues/1)) |
+
+Two things differ from the tested configuration in that report: the memory, and
+the macOS version. Do not assume it is the memory. Every confirmed success in
+this project and in the community thread runs macOS 26.x, where D3DMetal is
+version 3.0, and the engines are built against it. If you are on macOS 15 and
+get a black screen, run the check in
+[Black screen: which half failed](#black-screen-which-half-failed) before you
+spend an afternoon downloading other CARLA versions.
+
 ## Choose a CARLA version
 
 | Version | Use it when |
 |---|---|
 | **0.9.16** | Default choice. Latest release, reported working on macOS 26.2. |
-| 0.9.15 | Fall back here if 0.9.16 renders a black screen. Most widely reported version in the thread. |
+| 0.9.15 | Fall back here if 0.9.16 fails to finish loading. Confirm that is the failure first; a black screen alone does not mean the CARLA version is wrong. Most widely reported version in the thread. |
 | 0.9.11-0.9.14 | M1 or M2 hardware. |
 | 0.10.0 | Skip. Unreal Engine 5, 10-15 fps on M4. |
 
@@ -94,6 +115,17 @@ scripts/verify-sources.sh engine WS12WineSikarugir10.0_6
 The wrapper is an app bundle, written to `~/Applications/Sikarugir/CARLA.app`. Everything from here
 happens inside it.
 
+If **Install Engine** fails with `Sikarugir_Creator.EngineDownloadError error 1`, retry it once.
+The same download usually succeeds on a second attempt. If it keeps failing, place the tarball by
+hand and reopen the Creator:
+
+```bash
+mkdir -p ~/Library/Application\ Support/Sikarugir/Engines
+curl -fL -o ~/Library/Application\ Support/Sikarugir/Engines/WS12WineSikarugir10.0_6.tar.xz \
+  https://github.com/Sikarugir-App/Engines/releases/download/v1.0/WS12WineSikarugir10.0_6.tar.xz
+scripts/verify-sources.sh engine WS12WineSikarugir10.0_6
+```
+
 ## Step 3: Install the Visual C++ runtime
 
 1. Right-click `CARLA.app` and choose **Show Package Contents**.
@@ -128,6 +160,8 @@ C:\Program Files\CARLA_0.9.16\CarlaUE4.exe
 > The shipping binary is the launcher's target, not the launcher. Running it directly is the most
 > common cause of the fatal-error dialog on Test Run.
 
+Put the path here and nothing else. Launch flags go in a separate field, covered in Step 7.
+
 ## Step 6: Enable D3DMetal and test
 
 1. In `Configure.app`, check **D3DMetal**.
@@ -141,7 +175,38 @@ application.
 
 ## Step 7: Set launch flags
 
-Put flags in the flags field beside the executable path in `Configure.app`:
+`Configure.app` stores the executable and its flags in two separate fields. Flags go in the second
+one.
+
+> **Do not append flags to the executable path.** The Configure UI says the Windows app field
+> "also takes command line switches." It does not. Whatever you type there is stored whole in
+> `Program Name and Path`, and `Program Flags` stays empty. Wine then looks for an executable whose
+> filename contains the flags, finds nothing, and exits. **Test Run appears to do nothing: no
+> window, no error dialog, no `wineserver` process.**
+
+| Field | Value |
+|---|---|
+| `Program Name and Path` | `/Program Files/CARLA_0.9.16/CarlaUE4.exe` |
+| `Program Flags` | `-quality-level=Low` |
+
+Editing the executable text field again re-merges the flags into the path. If a launch that used to
+work stops working right after you touched that field, read the two values back:
+
+```bash
+plist=~/Applications/Sikarugir/CARLA.app/Contents/Info
+defaults read "$plist" "Program Name and Path"
+defaults read "$plist" "Program Flags"
+```
+
+Leave the `.plist` extension off; `defaults` adds it. Set them directly if the UI keeps merging
+them:
+
+```bash
+defaults write "$plist" "Program Name and Path" "/Program Files/CARLA_0.9.16/CarlaUE4.exe"
+defaults write "$plist" "Program Flags" "-quality-level=Low -windowed -ResX=1280 -ResY=720"
+```
+
+Available flags:
 
 | Flag | Effect |
 |---|---|
@@ -217,12 +282,50 @@ Extracting through Finder produces a layout where the client cannot find the new
 | Symptom | Fix |
 |---|---|
 | "No wrapper installed", cannot create a wrapper | You are on Kegworks. Use Sikarugir (Step 1). |
+| `EngineDownloadError error 1` on Install Engine | Retry once, or place the tarball by hand (Step 2). |
+| Test Run does nothing: no window, no error, no process | Flags are glued onto the executable path. Split them into `Program Flags` (Step 7). |
 | Fatal error on Test Run | Install `vcrun2022` only, not `vcrun2019` (Step 3). |
 | Fatal error, and `CarlaUE4-Win64-Shipping.exe` opens | Point the wrapper at `CarlaUE4.exe` (Step 5). |
-| Black screen, no crash | Your machine cannot drive this CARLA version. Drop to 0.9.15, then 0.9.9.4 to confirm the wrapper itself works. |
+| Black screen, no crash | Find out which half failed before changing anything. See below. |
 | Freezing, very low fps | Add `-quality-level=Low` (Step 7). |
 | Client cannot find added maps | Re-extract the maps zip from Terminal (Optional section). |
 | macOS reports a downloaded package as damaged | Settings → Privacy & Security → **Open Anyway**. |
+
+### Black screen: which half failed
+
+A black window means the processes started. It does not say whether CARLA finished loading the
+level. Those are two different failures with two different fixes, and the server tells you which
+one you have: it binds its RPC port only after the level is loaded.
+
+Leave the black window open. In Terminal on the Mac host:
+
+```bash
+for i in $(seq 1 180); do
+  nc -z 127.0.0.1 2000 && { echo "RPC UP after $((i*10))s"; break; }
+  sleep 10
+done
+```
+
+**The port opens.** The server loaded and is running. Only the picture is missing, so the fault is
+in the D3DMetal display path, not in CARLA and not in your memory. In order:
+
+1. Confirm **D3DMetal** is still checked in `Configure.app` (Step 6).
+2. On macOS 15 or earlier, try the `WS12WineCX24.0.7_7` engine, then `WS12WineGPTK1.1_3`. The
+   default engine is built against the macOS 26 D3DMetal.
+3. If neither renders, macOS 26 is the fix. Every confirmed success runs it.
+
+You can keep working in the meantime. Add `-RenderOffScreen` (Step 7) and drive the simulator
+entirely from the Python client (Step 8) — no window is needed.
+
+**The port never opens.** The level never finished loading. That is memory or shader compilation.
+
+1. **Wait longer on the first launch.** D3DMetal translates every shader the first time and caches
+   the result. First load of Town10 can take 20-30 minutes on a memory-tight machine. The second
+   launch is far cheaper. Let it run before deciding it is stuck.
+2. Free memory: quit everything else, and check `sysctl vm.swapusage` while CARLA loads. Steady
+   growth in swap means the machine is thrashing.
+3. Shrink the job: `-quality-level=Low -windowed -ResX=640 -ResY=480 -nosound`.
+4. Drop to **0.9.15**, then **0.9.9.4** to confirm the wrapper itself works.
 
 ## Architecture
 

@@ -32,14 +32,14 @@ progress.
 | Result | 57.75 fps, Town10 |
 
 Reports from the community confirm the same approach on the M4 Mac Mini and MacBook Air, and on
-older M1 and M2 machines with earlier CARLA releases.
+older M1 and M2 machines with earlier CARLA releases. Every confirmed success runs macOS 26.x.
 
 ## Getting started
 
 Read **[carla-on-apple-silicon.md](carla-on-apple-silicon.md)**. It takes you from a clean Mac to a
 running simulator with a working Python client, and it covers the mistakes that cost the most time.
 
-Plan for around 40 GB of free disk and an afternoon, most of it spent downloading.
+Plan for around 45 GB of free disk at peak, and an afternoon, most of it spent downloading.
 
 Before installing the wrapper tool, check what you are about to pull:
 
@@ -68,3 +68,7 @@ External:
 - **ROS and ROS2 are unsolved.** Nobody in the community discussion has gotten a ROS bridge
   working with this setup. If your project depends on ROS, this is not yet a replacement for a
   Linux machine.
+- **macOS 26 in practice, not just macOS 14.** Sikarugir installs on macOS 14 and later, but the
+  Wine engines are built against the macOS 26 D3DMetal. A black window on macOS 15 has been
+  reported ([issue #1](https://github.com/nathanaday/carla-mac-os/issues/1)) and is not yet solved.
+- **24 GB of memory, not 16.** 16 GB is below what 0.9.15 and later need in practice.
