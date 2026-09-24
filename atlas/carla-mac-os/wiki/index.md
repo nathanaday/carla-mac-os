@@ -3,7 +3,7 @@ type: meta
 title: Wiki Index
 status: evergreen
 created: 2026-09-20
-updated: 2026-09-20
+updated: 2026-09-23
 tags:
   - meta
   - index
@@ -19,7 +19,7 @@ Every page in this project's wiki is listed here. Completed operations keep it c
 
 ## Concepts
 
-- No concepts yet.
+- [[Remote CARLA clients]] — running CARLA agents on an x86 board or a Jetson, over the network to the Mac server
 
 ## Entities
 
