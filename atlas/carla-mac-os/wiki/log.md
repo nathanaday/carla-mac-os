@@ -13,6 +13,15 @@ tags:
 
 Newest completed operations appear first. claude-atlas writes this page.
 
+## 2026-09-23 — ingest-20260924-062815-d230
+
+file the CARLA on Apple Silicon guide, the Sikarugir notes, and the examples README: CARLA on macOS (hub), Sikarugir, CARLA Wine Python client, CARLA on macOS failure modes, three source pages; link Remote CARLA clients to the hub; clear the inbox
+
+- Created: [[CARLA on macOS]], [[Sikarugir]], [[CARLA Wine Python client]], [[CARLA on macOS failure modes]], [[Run CARLA on Apple Silicon guide]], [[Sikarugir trust notes]], [[CARLA 0.9.16 example scripts README]]
+- Updated: [[Remote CARLA clients]], [[index|Wiki Index]], [[overview|Wiki Overview]], [[hot|Hot Cache]]
+- Removed: `inbox/carla-on-apple-silicon.md`, `inbox/sikarugir.md`, `inbox/README.md`
+- Sources: src-78f1265a6186c2979cb4, src-65d202898c7bdff14249, src-f381225007de478adf46
+
 ## 2026-09-23 — capture-20260924-062410-b6c2
 
 capture carla-on-apple-silicon.md, sikarugir.md, README.md

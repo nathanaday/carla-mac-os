@@ -13,19 +13,20 @@ tags:
 
 ## Last Updated
 
-2026-09-23: saved [[Remote CARLA clients]].
+2026-09-23: filed the setup guide, the Sikarugir notes, and the examples README under the [[CARLA on macOS]] hub.
 
 ## Key Recent Facts
 
-- The Python client and CARLA's driving agents run in the Wine wrapper. `scripts/carla-python` runs them from a macOS Terminal.
-- The Wine client needs `numpy<2`. numpy 2.x crashes on import under Wine with no message.
-- An x86 Linux board can run agents against the Mac server with the PyPI `manylinux_2_31_x86_64` wheel.
-- A Jetson has no `carla` wheel. Either build the client from source, or keep the CARLA client on the x86 board and send sensor frames to the Jetson.
-- Not yet tested: remote access to ports 2000 and 2001 on the Wine server, and remote sensor streaming.
+- CARLA 0.9.16's Windows build runs on Apple Silicon under Wine in a [[Sikarugir]] wrapper, with D3DMetal. Every confirmed success runs macOS 26.x.
+- The [[CARLA Wine Python client]] runs from a macOS Terminal through `scripts/carla-python`. It needs `numpy<2` and the server's Wine sync settings.
+- `BasicAgent` drives in synchronous mode: 300 ticks in about 6 s on an M4 Pro.
+- Many failures print nothing. [[CARLA on macOS failure modes]] maps each symptom to its cause.
+- Agents on other machines are planned but untested; see [[Remote CARLA clients]].
 
 ## Recent Changes
 
-- Added [[Remote CARLA clients]].
+- Added the hub [[CARLA on macOS]], [[Sikarugir]], [[CARLA Wine Python client]], [[CARLA on macOS failure modes]], and three source pages.
+- Linked [[Remote CARLA clients]] to the hub.
 
 ## Active Threads
 

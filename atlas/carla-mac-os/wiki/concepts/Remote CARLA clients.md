@@ -7,12 +7,15 @@ created: 2026-09-23
 updated: 2026-09-23
 tags:
   - concept
+  - carla-on-macos
   - python-client
   - networking
   - hardware
 ---
 
 # Remote CARLA clients
+
+Part of [[CARLA on macOS]].
 
 ## Definition
 
@@ -21,7 +24,8 @@ connects to the CARLA server over the network. In this project the server runs u
 Mac. The candidate client machines are an x86 single-board computer and an NVIDIA Jetson board.
 
 The CARLA client needs only TCP access to the server: port 2000 for RPC and port 2001 for sensor
-data. So an agent can run on any machine that can reach the Mac.
+data. So an agent can run on any machine that can reach the Mac. The local alternative is the
+[[CARLA Wine Python client]].
 
 ## Why it matters
 
@@ -87,8 +91,10 @@ a camera sensor. That one run tests the network, the Wine port binding, and sens
 
 ## Related
 
-- Repository: `scripts/carla-python` and `examples/basic_agent.py` (the local Wine client), and
-  `carla-on-apple-silicon.md`, Steps 8-10.
+- [[CARLA on macOS]]
+- [[CARLA Wine Python client]] — the local client on the Mac
+- Repository: `scripts/carla-python`, `examples/basic_agent.py`, and `carla-on-apple-silicon.md`,
+  Steps 8-10.
 
 ## Sources
 
