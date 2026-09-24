@@ -58,6 +58,8 @@ scripts/verify-sources.sh
   with CARLA's driving agents on the path
 - [`examples/basic_agent.py`](examples/basic_agent.py) — drives one vehicle with `BasicAgent` in
   synchronous mode
+- [`examples/carla/`](examples/carla/) — CARLA 0.9.16's own example scripts, runnable from the
+  repository
 
 External:
 

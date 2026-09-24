@@ -282,8 +282,12 @@ directly, but you must set `PYTHONPATH` yourself to use the agents.
 Start `CARLA.app`. Then, from this repository:
 
 ```bash
-scripts/carla-python "C:\Program Files\CARLA_0.9.16\PythonAPI\examples\generate_traffic.py"
+scripts/carla-python examples/carla/generate_traffic.py
 ```
+
+`examples/carla/` holds copies of CARLA's 0.9.16 example scripts, so you can read and edit them in
+the repository. The originals in `C:\Program Files\CARLA_0.9.16\PythonAPI\examples` work the same
+way. See [examples/carla/README.md](examples/carla/README.md) for which scripts are tested.
 
 `manual_control.py` and `vehicle_gallery.py` work the same way. Their pygame windows open on the
 Mac desktop.
@@ -333,7 +337,7 @@ On an M4 Pro, 300 ticks (15 s simulated) take about 6 s of wall time.
 CARLA's own demo uses `BehaviorAgent` with a pygame view:
 
 ```bash
-scripts/carla-python "C:\Program Files\CARLA_0.9.16\PythonAPI\examples\automatic_control.py" --agent Behavior --behavior normal
+scripts/carla-python examples/carla/automatic_control.py --agent Behavior --behavior normal
 ```
 
 Use synchronous mode in your own agent scripts, as `examples/basic_agent.py` does. The server then
@@ -374,6 +378,7 @@ Extracting through Finder produces a layout where the client cannot find the new
 | `wine` from Terminal exits with status 136 and prints nothing | Wine's sync settings do not match the running `wineserver`. Use `scripts/carla-python` (Step 8). |
 | `No module named 'agents'` | Run the script through `scripts/carla-python`, or add `PythonAPI\carla` to `PYTHONPATH` (Step 10). |
 | World freezes after a client script dies | The script left synchronous mode on. Run a client to completion, or restart `CARLA.app` (Step 9). |
+| Every client call times out, but port 2000 is open | An old server is still running. Closing or killing `CARLA.app` can leave `CarlaUE4-Win64-Shipping.exe` and `wineserver` alive, holding port 2000. Click **Kill Wine Processes** in `Configure.app`, then start `CARLA.app` again. |
 | Paths with `CARLA_0.9.16` are not found | The folder may be `CARLA_0`. Check the name (Step 4). |
 | macOS reports a downloaded package as damaged | Settings → Privacy & Security → **Open Anyway**. |
 
