@@ -37,7 +37,8 @@ older M1 and M2 machines with earlier CARLA releases. Every confirmed success ru
 ## Getting started
 
 Read **[carla-on-apple-silicon.md](carla-on-apple-silicon.md)**. It takes you from a clean Mac to a
-running simulator with a working Python client, and it covers the mistakes that cost the most time.
+running simulator with a working Python client and a driving agent, and it covers the mistakes that
+cost the most time.
 
 Plan for around 45 GB of free disk at peak, and an afternoon, most of it spent downloading.
 
@@ -53,6 +54,10 @@ scripts/verify-sources.sh
 - [Sikarugir notes](docs/sikarugir.md) — the Wine wrapper: what it is, what was verified before
   trusting it, and how to pick an engine
 - [Known-good checksums](checksums/known-good.txt) — hashes for every binary this project installs
+- [`scripts/carla-python`](scripts/carla-python) — runs the wrapper's Python from a macOS Terminal,
+  with CARLA's driving agents on the path
+- [`examples/basic_agent.py`](examples/basic_agent.py) — drives one vehicle with `BasicAgent` in
+  synchronous mode
 
 External:
 
@@ -64,7 +69,7 @@ External:
 ## Caveats
 
 - **The server runs under Wine. The Python client does too.** There is no native macOS build of
-  either. The client works well inside the same wrapper; see the walkthrough.
+  either. The client works well inside the same wrapper, with `numpy<2`; see the walkthrough.
 - **ROS and ROS2 are unsolved.** Nobody in the community discussion has gotten a ROS bridge
   working with this setup. If your project depends on ROS, this is not yet a replacement for a
   Linux machine.

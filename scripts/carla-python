@@ -1,0 +1,69 @@
+#!/usr/bin/env bash
+# Run the wrapper's Windows Python from a macOS terminal.
+#
+# Usage:
+#   scripts/carla-python <script.py> [args...]    run a script (macOS or Windows path)
+#   scripts/carla-python -m pip install <pkg>     any python.exe arguments work
+#
+# Environment:
+#   CARLA_APP   wrapper bundle (default: ~/Applications/Sikarugir/CARLA.app)
+#
+# The environment below mirrors what Sikarugir sets when it launches CARLA.
+# WINEMSYNC and WINEESYNC must match the running wineserver, or every Wine
+# process exits at once with status 136 and no message.
+
+set -euo pipefail
+
+APP="${CARLA_APP:-$HOME/Applications/Sikarugir/CARLA.app}"
+SS="$APP/Contents/SharedSupport"
+FW="$APP/Contents/Frameworks"
+
+if [[ ! -x "$SS/wine/bin/wine" ]]; then
+  echo "carla-python: no wrapper at $APP (set CARLA_APP)" >&2
+  exit 2
+fi
+
+export WINEPREFIX="$SS/prefix"
+export WINELOADER="$SS/wine/bin/wine"
+export WINEDLLPATH="$SS/wine/lib/x86_64-windows:$SS/wine/lib/i386-windows:$SS/wine/lib/x86_64-unix"
+export DYLD_FALLBACK_LIBRARY_PATH="$SS/wine/lib:$SS/wine/lib64:$FW:$FW/GStreamer.framework/Libraries:/usr/lib:/usr/libexec:/usr/lib/system"
+export PATH="$SS/wine/bin:/usr/bin:/bin:/usr/sbin:/sbin"
+export WINEMSYNC=1 WINEESYNC=1 ROSETTA_ADVERTISE_AVX=1
+export WINEDEBUG="${WINEDEBUG:--all}"
+
+DRIVE_C="$WINEPREFIX/drive_c"
+PYTHON="$(find "$DRIVE_C/Program Files" -maxdepth 2 -name python.exe -path '*Python3*' | sort | tail -1)"
+if [[ -z "$PYTHON" ]]; then
+  echo "carla-python: no Windows Python under C:\\Program Files (guide, Step 8)" >&2
+  exit 2
+fi
+
+# The CARLA folder name depends on how it was moved in: CARLA_0.9.16 or CARLA_0.
+CARLA_DIR="$(find "$DRIVE_C/Program Files" -maxdepth 2 -name CarlaUE4.exe -exec dirname {} \; | head -1)"
+
+to_windows() {
+  local abs
+  abs="$(cd "$(dirname "$1")" && pwd)/$(basename "$1")"
+  if [[ "$abs" == "$DRIVE_C"/* ]]; then
+    abs="C:${abs#"$DRIVE_C"}"
+  else
+    abs="Z:$abs"
+  fi
+  printf '%s' "${abs//\//\\}"
+}
+
+# The agents package ships with CARLA, not in the carla wheel.
+if [[ -n "$CARLA_DIR" ]]; then
+  export PYTHONPATH="$(to_windows "$CARLA_DIR/PythonAPI/carla")${PYTHONPATH:+;$PYTHONPATH}"
+fi
+
+args=()
+for a in "$@"; do
+  if [[ "$a" == *.py && -f "$a" ]]; then
+    args+=("$(to_windows "$a")")
+  else
+    args+=("$a")
+  fi
+done
+
+exec wine "$(to_windows "$PYTHON")" -u "${args[@]}"

@@ -2,7 +2,8 @@
 
 CARLA publishes builds for Ubuntu and Windows only. This guide runs the **Windows** build of the
 CARLA server on an Apple Silicon Mac inside a Wine wrapper, using Apple's D3DMetal to translate
-Direct3D 12 calls to Metal. The Python client runs inside the same wrapper.
+Direct3D 12 calls to Metal. The Python client and CARLA's driving agents run inside the same
+wrapper.
 
 There is no native macOS build of the CARLA server, and no macOS wheel for the `carla` Python
 package. Both halves run under Wine.
@@ -146,7 +147,14 @@ If Winetricks reports problems later, `win10` and `cmd` are also worth installin
 2. In `Configure.app`, click **Install Software**.
 3. Click **Move a Folder Inside** and select the extracted folder.
 
-The folder lands at `C:\Program Files\CARLA_0.9.16` inside the wrapper.
+The folder lands in `C:\Program Files` inside the wrapper. Check its name before you continue:
+
+```bash
+ls ~/Applications/Sikarugir/CARLA.app/Contents/SharedSupport/prefix/drive_c/Program\ Files
+```
+
+The name can be `CARLA_0` instead of `CARLA_0.9.16`: the move can cut the name at the first dot.
+This guide writes `CARLA_0.9.16`. Use the name you find in every path from here on.
 
 ## Step 5: Set the executable
 
@@ -236,29 +244,102 @@ Python 3.10 is the version to install. It is the only release with a Windows `ca
 3. In the Python installer, click **Customize installation**. Check every optional feature. On the
    next screen check **Install for all users** and **Add Python to environment variables**. Install.
 
-Then open **Command Line** in `Configure.app` and install the client:
+Start `CARLA.app`. Then install the client from a macOS Terminal, in this repository:
 
+```bash
+scripts/carla-python -m pip install --upgrade pip
+scripts/carla-python -m pip install carla==0.9.16 "numpy<2" pygame networkx shapely
 ```
-python -m pip install --upgrade pip
-pip install carla==0.9.16 pygame numpy
-```
+
+> **Pin `numpy<2`.** numpy 2.x calls `ucrtbase.dll.crealf`, a function this Wine build does not
+> implement. Python crashes on `import numpy`, before the script connects to the server. In the
+> `Configure.app` command window the crash prints nothing, so the script looks like it ran and
+> did nothing. CARLA's own `PythonAPI/examples/requirements.txt` also pins `numpy<2.0.0`.
+
+`networkx` and `shapely` are for the driving agents (Step 10). The `carla` wheel does not pull them
+in.
+
+### The launcher
+
+`scripts/carla-python` runs the wrapper's Windows Python from a normal macOS Terminal. It takes the
+same arguments as `python.exe`. It does three things:
+
+- It sets the environment that Sikarugir uses when it launches CARLA.
+- It puts the CARLA agents package, `PythonAPI/carla`, on `PYTHONPATH`.
+- It converts a macOS path to a `.py` file into the Windows path Wine expects.
+
+It finds the wrapper at `~/Applications/Sikarugir/CARLA.app`. Set `CARLA_APP` to use another one.
+
+A bare call to the wrapper's `wine` binary does not work while CARLA is running. The running
+`wineserver` uses `WINEMSYNC=1` and `WINEESYNC=1`. A Wine process without the same settings exits
+at once with status 136 and no message. The launcher sets both.
+
+**Command Line** in `Configure.app` still works as a fallback. Use `python` and `pip` there
+directly, but you must set `PYTHONPATH` yourself to use the agents.
 
 ## Step 9: Run a client script
 
-Start `CARLA.app`. Then, from **Command Line** in `Configure.app`:
+Start `CARLA.app`. Then, from this repository:
 
-```
-python "C:\Program Files\CARLA_0.9.16\PythonAPI\examples\generate_traffic.py"
+```bash
+scripts/carla-python "C:\Program Files\CARLA_0.9.16\PythonAPI\examples\generate_traffic.py"
 ```
 
-`manual_control.py` and `vehicle_gallery.py` work the same way.
+`manual_control.py` and `vehicle_gallery.py` work the same way. Their pygame windows open on the
+Mac desktop.
+
+Stop `generate_traffic.py` with Ctrl+C in the Terminal. It turns on synchronous mode by default
+and restores the server settings only when it exits cleanly. If the script dies in another way, the
+server stays in synchronous mode and waits for ticks that never come: the world freezes. Run any
+client script to completion, or restart `CARLA.app`, to recover.
 
 A `ModuleNotFoundError` means an example needs a dependency that the wheel does not pull in. Install
 it and re-run:
 
+```bash
+scripts/carla-python -m pip install <module>
 ```
-pip install shapely
+
+## Step 10: Drive with an agent
+
+CARLA ships its driving agents as source in `PythonAPI/carla/agents`, not in the `carla` wheel.
+The launcher puts them on `PYTHONPATH`, so `from agents.navigation.basic_agent import BasicAgent`
+works in any script it runs.
+
+| Agent | Behavior |
+|---|---|
+| `BasicAgent` | Follows a route to a destination at a target speed. Stops for other vehicles and red lights. |
+| `BehaviorAgent` | Adds tailgating, lane changes, and speed limits. Profiles: `cautious`, `normal`, `aggressive`. |
+| `ConstantVelocityAgent` | Holds a fixed speed and ignores physics limits. For testing. |
+
+Run the example in this repository. It drives one vehicle across Town10 in synchronous mode, and
+the camera follows the car:
+
+```bash
+scripts/carla-python examples/basic_agent.py            # 600 ticks, 30 s simulated
+scripts/carla-python examples/basic_agent.py --ticks 0  # until the car arrives
 ```
+
+Expected output:
+
+```
+driving Location(x=-64.64, y=24.47, z=0.60) -> Location(x=109.52, y=89.84, z=0.60)
+tick     0    3.5 km/h  ...
+tick   100   29.9 km/h  ...
+```
+
+On an M4 Pro, 300 ticks (15 s simulated) take about 6 s of wall time.
+
+CARLA's own demo uses `BehaviorAgent` with a pygame view:
+
+```bash
+scripts/carla-python "C:\Program Files\CARLA_0.9.16\PythonAPI\examples\automatic_control.py" --agent Behavior --behavior normal
+```
+
+Use synchronous mode in your own agent scripts, as `examples/basic_agent.py` does. The server then
+advances only when the client calls `world.tick()`. Agent behavior no longer depends on how fast
+the client runs under Wine. Restore the original settings in a `finally` block, for the reason
+given in Step 9.
 
 ## Optional: additional maps
 
@@ -289,6 +370,11 @@ Extracting through Finder produces a layout where the client cannot find the new
 | Black screen, no crash | Find out which half failed before changing anything. See below. |
 | Freezing, very low fps | Add `-quality-level=Low` (Step 7). |
 | Client cannot find added maps | Re-extract the maps zip from Terminal (Optional section). |
+| Client script ends at once, prints nothing, and the world does not change | numpy 2.x crashed on import. Install `numpy<2` (Step 8). |
+| `wine` from Terminal exits with status 136 and prints nothing | Wine's sync settings do not match the running `wineserver`. Use `scripts/carla-python` (Step 8). |
+| `No module named 'agents'` | Run the script through `scripts/carla-python`, or add `PythonAPI\carla` to `PYTHONPATH` (Step 10). |
+| World freezes after a client script dies | The script left synchronous mode on. Run a client to completion, or restart `CARLA.app` (Step 9). |
+| Paths with `CARLA_0.9.16` are not found | The folder may be `CARLA_0`. Check the name (Step 4). |
 | macOS reports a downloaded package as damaged | Settings → Privacy & Security → **Open Anyway**. |
 
 ### Black screen: which half failed
@@ -315,7 +401,7 @@ in the D3DMetal display path, not in CARLA and not in your memory. In order:
 3. If neither renders, macOS 26 is the fix. Every confirmed success runs it.
 
 You can keep working in the meantime. Add `-RenderOffScreen` (Step 7) and drive the simulator
-entirely from the Python client (Step 8) — no window is needed.
+entirely from the Python client (Steps 8-10) — no window is needed.
 
 **The port never opens.** The level never finished loading. That is memory or shader compilation.
 
@@ -334,13 +420,17 @@ macOS (arm64)
 └── Sikarugir wrapper: CARLA.app
     ├── Wine + D3DMetal
     ├── CarlaUE4.exe          server, RPC on port 2000
-    └── Python 3.10 (win64)   client, carla wheel from PyPI
+    └── Python 3.10 (win64)   client, carla wheel from PyPI, agents from PythonAPI/carla
+        ▲
+        └── scripts/carla-python   runs the client from a macOS Terminal
 ```
 
-The client talks to the server over TCP, so it can live anywhere that can reach port 2000. The
-alternative to Wine Python is a `linux/amd64` Docker container running the manylinux wheel. That
-works, but on Apple Silicon it runs under qemu emulation and the discussion's author moved away
-from it once the Wine client worked.
+The client talks to the server over TCP on ports 2000 and 2001, so it can live anywhere that can
+reach those ports. The alternative to Wine Python is a `linux/amd64` Docker container running the
+manylinux wheel, connecting to `host.docker.internal`. The discussion reports that this works. This
+project has not tested it, and the discussion's author moved away from it once the Wine client
+worked. Sensor data arrives on port 2001 at an address the server reports, so test a camera sensor
+before you rely on the Docker path.
 
 ## Sources
 
