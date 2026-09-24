@@ -1,5 +1,45 @@
 {
-  "generated_at": "2026-09-20T18:13:51Z",
+  "generated_at": "2026-09-24T06:24:10Z",
   "schema": "atlas-obsidian.source-ledger.v1",
-  "sources": {}
+  "sources": {
+    "src-65d202898c7bdff14249": {
+      "authority": "unknown",
+      "captured_at": "2026-09-23",
+      "content_kind": "markdown",
+      "content_sha256": "99c1bcd9c0a1c53fbb0aba4406f83ea5f07a077657c5148f3f3d3224270d0f5d",
+      "origin": {
+        "kind": "file",
+        "locator": ".raw/captured/99c1bcd9c0a1c53fbb0aba4406f83ea5f07a077657c5148f3f3d3224270d0f5d.md"
+      },
+      "pages": [],
+      "review_status": "unreviewed",
+      "title": "sikarugir"
+    },
+    "src-78f1265a6186c2979cb4": {
+      "authority": "unknown",
+      "captured_at": "2026-09-23",
+      "content_kind": "markdown",
+      "content_sha256": "ad528a39ceb598b2b525422b5d56d075124257626234231ccda6c2fd728e0a79",
+      "origin": {
+        "kind": "file",
+        "locator": ".raw/captured/ad528a39ceb598b2b525422b5d56d075124257626234231ccda6c2fd728e0a79.md"
+      },
+      "pages": [],
+      "review_status": "unreviewed",
+      "title": "carla-on-apple-silicon"
+    },
+    "src-f381225007de478adf46": {
+      "authority": "unknown",
+      "captured_at": "2026-09-23",
+      "content_kind": "markdown",
+      "content_sha256": "54b4f105aaa5e98067831791d680748836b6d902760df767bde6683718ae7634",
+      "origin": {
+        "kind": "file",
+        "locator": ".raw/captured/54b4f105aaa5e98067831791d680748836b6d902760df767bde6683718ae7634.md"
+      },
+      "pages": [],
+      "review_status": "unreviewed",
+      "title": "README"
+    }
+  }
 }
